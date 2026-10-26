@@ -4,10 +4,47 @@ const USERS_KEY = 'sk_kiwalo_users_v1';
 const CURRENT_USER_KEY = 'sk_kiwalo_current_user_v1';
 const JOBS_KEY = 'sk_kiwalo_jobs_v1';
 const NOTIFICATIONS_KEY = 'sk_kiwalo_notifications_v1';
+const CAPACITY_LIMIT_KEY = 'sk_kiwalo_capacity_limit_v1';
+const ADMIN_AUTH_KEY = 'sk_kiwalo_admin_auth_v1';
 
 export const PUROK_OPTIONS: Purok[] = ['Purok 1', 'Purok 2', 'Purok 3'];
 
+export const DEFAULT_CAPACITY_LIMIT = 10;
 export const DAILY_CAPACITY_LIMIT = 10;
+export const ADMIN_DEFAULT_PIN = '8888';
+
+// Get configured capacity limit
+export const getDailyCapacityLimit = (): number => {
+  try {
+    const val = localStorage.getItem(CAPACITY_LIMIT_KEY);
+    return val ? parseInt(val, 10) || DEFAULT_CAPACITY_LIMIT : DEFAULT_CAPACITY_LIMIT;
+  } catch {
+    return DEFAULT_CAPACITY_LIMIT;
+  }
+};
+
+export const setDailyCapacityLimit = (limit: number): void => {
+  localStorage.setItem(CAPACITY_LIMIT_KEY, limit.toString());
+  window.dispatchEvent(new Event('sk_kiwalo_storage_update'));
+};
+
+// Admin Session helpers
+export const isAdminAuthenticated = (): boolean => {
+  try {
+    return localStorage.getItem(ADMIN_AUTH_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
+export const setAdminAuthenticated = (val: boolean): void => {
+  if (val) {
+    localStorage.setItem(ADMIN_AUTH_KEY, 'true');
+  } else {
+    localStorage.removeItem(ADMIN_AUTH_KEY);
+  }
+  window.dispatchEvent(new Event('sk_kiwalo_storage_update'));
+};
 
 // Format today as YYYY-MM-DD
 export const getTodayDateString = (): string => {
@@ -234,6 +271,7 @@ export const saveUser = (user: User): void => {
     users.push(user);
   }
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  window.dispatchEvent(new Event('sk_kiwalo_storage_update'));
 };
 
 export const getCurrentUser = (): User | null => {
@@ -252,6 +290,7 @@ export const setCurrentUser = (user: User | null): void => {
   } else {
     localStorage.removeItem(CURRENT_USER_KEY);
   }
+  window.dispatchEvent(new Event('sk_kiwalo_storage_update'));
 };
 
 export const getPrintJobs = (): PrintJob[] => {
@@ -276,6 +315,13 @@ export const savePrintJob = (job: PrintJob): void => {
     jobs.unshift(job);
   }
   localStorage.setItem(JOBS_KEY, JSON.stringify(jobs));
+  window.dispatchEvent(new Event('sk_kiwalo_storage_update'));
+};
+
+export const deletePrintJob = (jobId: string): void => {
+  const jobs = getPrintJobs().filter(j => j.id !== jobId);
+  localStorage.setItem(JOBS_KEY, JSON.stringify(jobs));
+  window.dispatchEvent(new Event('sk_kiwalo_storage_update'));
 };
 
 export const updateJobStatus = (
@@ -300,7 +346,7 @@ export const updateJobStatus = (
       type: 'sms',
       recipient: job.userContact,
       title: 'Printout Ready for Pickup!',
-      message: `SK KIWALO: Magandang araw ${job.userName.split(' ')[0]}! Your printout "${job.documentTitle}" (Ref: ${job.referenceNumber}) is READY FOR PICKUP at 2nd Floor, Kiwalo Multi-purpose Hall. Office hours: Mon-Fri 8:00 AM - 5:00 PM.`,
+      message: `SK KIWALO: Magandang araw ${job.userName.split(' ')[0]}! Your printout "${job.documentTitle}" (Ref: ${job.referenceNumber}) is READY FOR PICKUP at 2nd Floor, Kiwalo Multi-purpose Hall. Office hours: Mon-Fri 8:00 AM - 5:00 PM. Please present your student ID.`,
       referenceNumber: job.referenceNumber,
     });
     sendNotification({
@@ -315,26 +361,26 @@ export const updateJobStatus = (
   }
 
   localStorage.setItem(JOBS_KEY, JSON.stringify(jobs));
+  window.dispatchEvent(new Event('sk_kiwalo_storage_update'));
   return job;
 };
 
 // Calculate slots for a specific date (10 students per day quota)
 export const getDailySlotInfo = (dateStr: string): DailySlotInfo => {
   const jobs = getPrintJobs();
-  // Count distinct students who booked on this date (or count total print jobs)
-  // The requirement says "Daily Hub Capacity & Student Slots - 10 students per day"
+  const capacityLimit = getDailyCapacityLimit();
+  // Count distinct students who booked on this date
   const jobsOnDate = jobs.filter(
     j => j.pickupDate === dateStr && j.status !== 'Cancelled'
   );
 
-  // Set of unique students who booked for this day
   const distinctStudents = new Set(jobsOnDate.map(j => j.userId));
   const bookedCount = distinctStudents.size;
-  const remainingSlots = Math.max(0, DAILY_CAPACITY_LIMIT - bookedCount);
+  const remainingSlots = Math.max(0, capacityLimit - bookedCount);
 
   return {
     date: dateStr,
-    totalAllowed: DAILY_CAPACITY_LIMIT,
+    totalAllowed: capacityLimit,
     bookedCount,
     remainingSlots,
   };
@@ -373,4 +419,51 @@ export const markNotificationsRead = (): void => {
   const list = getNotifications().map(n => ({ ...n, read: true }));
   localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(list));
   window.dispatchEvent(new Event('sk_kiwalo_storage_update'));
+};
+
+// Export CSV report of all print jobs
+export const exportJobsToCsv = (): void => {
+  const jobs = getPrintJobs();
+  const headers = [
+    'Reference Number',
+    'Student Name',
+    'Email',
+    'Contact Number',
+    'Purok',
+    'Document Title',
+    'Category',
+    'Pages',
+    'Copies',
+    'Paper Size',
+    'Color Mode',
+    'Pickup Date',
+    'Status',
+    'Submitted At',
+  ];
+
+  const rows = jobs.map(j => [
+    `"${j.referenceNumber}"`,
+    `"${j.userName}"`,
+    `"${j.userEmail}"`,
+    `"${j.userContact}"`,
+    `"${j.purok}"`,
+    `"${j.documentTitle.replace(/"/g, '""')}"`,
+    `"${j.documentType}"`,
+    j.pageCount,
+    j.copies,
+    `"${j.paperSize}"`,
+    `"${j.colorMode}"`,
+    `"${j.pickupDate}"`,
+    `"${j.status}"`,
+    `"${j.createdAt}"`,
+  ]);
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `SK_Kiwalo_Print_Jobs_${getTodayDateString()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };

@@ -8,6 +8,7 @@ import {
 import { 
   getCurrentUser, 
   setCurrentUser, 
+  getUsers,
   getPrintJobs, 
   getNotifications, 
   getDailySlotInfo, 
@@ -22,6 +23,7 @@ import { DailyCapacitySection } from './components/DailyCapacitySection';
 import { QuickTrackSection } from './components/QuickTrackSection';
 import { StudentDashboard } from './components/StudentDashboard';
 import { OfficerDeskView } from './components/OfficerDeskView';
+import { AdminDashboard } from './components/AdminDashboard';
 import { AuthModal } from './components/AuthModal';
 import { PrintSubmissionModal } from './components/PrintSubmissionModal';
 import { TrackingModal } from './components/TrackingModal';
@@ -37,14 +39,19 @@ import {
   BookOpen, 
   ShieldCheck, 
   Sparkles,
-  Users
+  Users,
+  LayoutDashboard
 } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setUser] = useState<User | null>(() => getCurrentUser());
+  const [users, setUsersList] = useState<User[]>(() => getUsers());
   const [jobs, setJobs] = useState<PrintJob[]>(() => getPrintJobs());
   const [notifications, setNotifications] = useState<AppNotification[]>(() => getNotifications());
   const [dailySlots, setDailySlots] = useState(() => getDailySlotInfo(getTodayDateString()));
+
+  // Active View Mode: 'portal' (Student/Public) | 'admin' (Dedicated Admin Dashboard)
+  const [currentView, setCurrentView] = useState<'portal' | 'admin'>('portal');
 
   // Active Modals & Views
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -61,6 +68,7 @@ export default function App() {
 
   // Sync state helpers
   const refreshData = () => {
+    setUsersList(getUsers());
     setJobs(getPrintJobs());
     setNotifications(getNotifications());
     setDailySlots(getDailySlotInfo(getTodayDateString()));
@@ -111,8 +119,6 @@ export default function App() {
 
   const handleJobCreated = (newJob: PrintJob) => {
     refreshData();
-    setTrackingRef(newJob.referenceNumber);
-    setTrackingModalOpen(true);
   };
 
   const handleUpdateJobStatus = (jobId: string, status: JobStatus, notes?: string) => {
@@ -155,7 +161,7 @@ export default function App() {
               </span>
               <button 
                 onClick={() => setToastNotification(null)}
-                className="text-slate-400 hover:text-white p-0.5"
+                className="text-slate-400 hover:text-white p-0.5 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -189,114 +195,150 @@ export default function App() {
         dailySlots={dailySlots}
         isOfficerMode={isOfficerMode}
         onToggleOfficerMode={() => setIsOfficerMode(!isOfficerMode)}
+        onOpenAdmin={() => setCurrentView(currentView === 'admin' ? 'portal' : 'admin')}
+        isAdminView={currentView === 'admin'}
         unreadCount={unreadCount}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onOpenLocationHub={() => setLocationModalOpen(true)}
         onOpenSubmitModal={() => setSubmitModalOpen(true)}
       />
 
-      {/* If Officer Desk Mode is toggled ON, display the SK Desk Staff queue management */}
-      {isOfficerMode && (
-        <OfficerDeskView
+      {/* VIEW CONDITIONAL: DEDICATED ADMIN DASHBOARD VS. STUDENT PORTAL */}
+      {currentView === 'admin' ? (
+        <AdminDashboard
           jobs={jobs}
+          users={users}
+          notifications={notifications}
           onUpdateStatus={handleUpdateJobStatus}
           onOpenTrack={handleTrackReference}
-          onExitOfficerMode={() => setIsOfficerMode(false)}
+          onCloseAdmin={() => setCurrentView('portal')}
         />
+      ) : (
+        <>
+          {/* If Quick Officer Mini-Desk Mode is toggled ON, display inline banner */}
+          {isOfficerMode && (
+            <OfficerDeskView
+              jobs={jobs}
+              onUpdateStatus={handleUpdateJobStatus}
+              onOpenTrack={handleTrackReference}
+              onExitOfficerMode={() => setIsOfficerMode(false)}
+            />
+          )}
+
+          {/* Hero Overview Banner (with green gradient) */}
+          <HeroOverview
+            dailySlots={dailySlots}
+            onOpenSubmit={() => setSubmitModalOpen(true)}
+            onOpenTrack={() => handleTrackReference(jobs[0]?.referenceNumber || '')}
+            onOpenLocation={() => setLocationModalOpen(true)}
+            onOpenAuth={handleOpenAuth}
+            isLoggedIn={!!currentUser}
+          />
+
+          {/* Visual Daily Capacity & 10 Students Quota Tracker */}
+          <DailyCapacitySection
+            onOpenSubmit={() => setSubmitModalOpen(true)}
+            onOpenTrack={handleTrackReference}
+          />
+
+          {/* Quick Tracking Search Section */}
+          <QuickTrackSection
+            onTrack={handleTrackReference}
+          />
+
+          {/* Logged-In Student Dashboard */}
+          {currentUser && (
+            <StudentDashboard
+              currentUser={currentUser}
+              userJobs={userJobs}
+              onOpenSubmit={() => setSubmitModalOpen(true)}
+              onOpenTrack={handleTrackReference}
+              onCancelJob={handleCancelJob}
+            />
+          )}
+
+          {/* Educational Modules & Feature Info Grid */}
+          <section className="py-12 bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
+                <span className="text-xs font-bold text-emerald-700 uppercase tracking-widest bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
+                  Empowering Kiwalo Students
+                </span>
+                <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                  How Free Printing Works in 3 Steps
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500">
+                  Zero paper cost, zero ink cost. Built for high school, college, and vocational students of Barangay Kiwalo.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="p-6 rounded-2xl bg-gradient-to-b from-emerald-50/50 to-white border border-emerald-100 hover:border-emerald-300 transition-all space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-emerald-600/20">
+                    1
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900">
+                    Create Account & Upload
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Register with your Full Name, Email, Contact Number, and Purok (Purok 1, 2, or 3) with a quick 4-PIN password. Upload your PDF or DOCX module.
+                  </p>
+                </div>
+
+                <div className="p-6 rounded-2xl bg-gradient-to-b from-emerald-50/50 to-white border border-emerald-100 hover:border-emerald-300 transition-all space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-teal-600/20">
+                    2
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900">
+                    Print Desk Processes Job
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Your file is assigned a unique Reference Number (e.g. SKK-2026-XXXX). Our youth officers print it cleanly on short, long bond, or A4 paper.
+                  </p>
+                </div>
+
+                <div className="p-6 rounded-2xl bg-gradient-to-b from-emerald-50/50 to-white border border-emerald-100 hover:border-emerald-300 transition-all space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-green-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-green-600/20">
+                    3
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900">
+                    Receive SMS Alert & Pick Up
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Get an instant SMS text notification when done. Pick up during hub office hours: Mon-Fri 8:00 AM - 5:00 PM at 2nd Floor, Kiwalo Multi-purpose Hall.
+                  </p>
+                </div>
+              </div>
+
+              {/* Admin callout card for officers */}
+              <div className="mt-10 p-5 rounded-2xl bg-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400 text-emerald-300 flex items-center justify-center font-bold">
+                    <LayoutDashboard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold">Are you an SK Kiwalo Desk Officer?</h4>
+                    <p className="text-xs text-slate-400">Manage queue, update capacity quotas, and dispatch broadcast SMS announcements.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCurrentView('admin')}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all flex items-center gap-1.5 shrink-0"
+                >
+                  <span>Open Admin Dashboard</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Footer */}
+          <Footer
+            onOpenLocation={() => setLocationModalOpen(true)}
+            onOpenSubmit={() => setSubmitModalOpen(true)}
+          />
+        </>
       )}
-
-      {/* Hero Overview Banner (with green gradient) */}
-      <HeroOverview
-        dailySlots={dailySlots}
-        onOpenSubmit={() => setSubmitModalOpen(true)}
-        onOpenTrack={() => handleTrackReference(jobs[0]?.referenceNumber || '')}
-        onOpenLocation={() => setLocationModalOpen(true)}
-        onOpenAuth={handleOpenAuth}
-        isLoggedIn={!!currentUser}
-      />
-
-      {/* Visual Daily Capacity & 10 Students Quota Tracker */}
-      <DailyCapacitySection
-        onOpenSubmit={() => setSubmitModalOpen(true)}
-        onOpenTrack={handleTrackReference}
-      />
-
-      {/* Quick Tracking Search Section */}
-      <QuickTrackSection
-        onTrack={handleTrackReference}
-      />
-
-      {/* Logged-In Student Dashboard */}
-      {currentUser && (
-        <StudentDashboard
-          currentUser={currentUser}
-          userJobs={userJobs}
-          onOpenSubmit={() => setSubmitModalOpen(true)}
-          onOpenTrack={handleTrackReference}
-          onCancelJob={handleCancelJob}
-        />
-      )}
-
-      {/* Educational Modules & Feature Info Grid */}
-      <section className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-widest bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-              Empowering Kiwalo Students
-            </span>
-            <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-              How Free Printing Works in 3 Steps
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-500">
-              Zero paper cost, zero ink cost. Built for high school, college, and vocational students of Barangay Kiwalo.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-2xl bg-gradient-to-b from-emerald-50/50 to-white border border-emerald-100 hover:border-emerald-300 transition-all space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-emerald-600/20">
-                1
-              </div>
-              <h4 className="text-base font-bold text-slate-900">
-                Create Account & Upload
-              </h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Register with your Full Name, Email, Contact Number, and Purok (Purok 1, 2, or 3) with a quick 4-PIN password. Upload your PDF or DOCX module.
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-gradient-to-b from-emerald-50/50 to-white border border-emerald-100 hover:border-emerald-300 transition-all space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-teal-600/20">
-                2
-              </div>
-              <h4 className="text-base font-bold text-slate-900">
-                Print Desk Processes Job
-              </h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Your file is assigned a unique Reference Number (e.g. SKK-2026-XXXX). Our youth officers print it cleanly on short, long bond, or A4 paper.
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-gradient-to-b from-emerald-50/50 to-white border border-emerald-100 hover:border-emerald-300 transition-all space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-green-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-green-600/20">
-                3
-              </div>
-              <h4 className="text-base font-bold text-slate-900">
-                Receive SMS Alert & Pick Up
-              </h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Get an instant SMS text notification when done. Pick up during hub office hours: Mon-Fri 8:00 AM - 5:00 PM at 2nd Floor, Kiwalo Multi-purpose Hall.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <Footer
-        onOpenLocation={() => setLocationModalOpen(true)}
-        onOpenSubmit={() => setSubmitModalOpen(true)}
-      />
 
       {/* Modals */}
       <AuthModal
@@ -315,6 +357,7 @@ export default function App() {
           setSubmitModalOpen(false);
           handleOpenAuth('register');
         }}
+        onTrackReference={handleTrackReference}
       />
 
       <TrackingModal

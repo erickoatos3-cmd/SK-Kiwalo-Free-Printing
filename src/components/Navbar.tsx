@@ -10,7 +10,8 @@ import {
   CalendarDays, 
   Layers,
   Sparkles,
-  PhoneCall
+  PhoneCall,
+  LayoutDashboard
 } from 'lucide-react';
 import { User, DailySlotInfo, AppNotification } from '../types';
 
@@ -22,6 +23,8 @@ interface NavbarProps {
   dailySlots: DailySlotInfo;
   isOfficerMode: boolean;
   onToggleOfficerMode: () => void;
+  onOpenAdmin: () => void;
+  isAdminView: boolean;
   unreadCount: number;
   onOpenNotifications: () => void;
   onOpenLocationHub: () => void;
@@ -36,13 +39,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   dailySlots,
   isOfficerMode,
   onToggleOfficerMode,
+  onOpenAdmin,
+  isAdminView,
   unreadCount,
   onOpenNotifications,
   onOpenLocationHub,
   onOpenSubmitModal,
 }) => {
   const [quickRef, setQuickRef] = useState('');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleQuickSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <div className="hidden md:flex items-center gap-1.5 text-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Daily Student Quota: 10 slots</span>
+              <span>Daily Student Quota: {dailySlots.totalAllowed} slots</span>
             </div>
           </div>
         </div>
@@ -91,7 +95,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-16 gap-3">
           
           {/* Brand Logo & Name */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div 
+            onClick={isAdminView ? onOpenAdmin : undefined} 
+            className="flex items-center gap-3 shrink-0 cursor-pointer"
+          >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-700 p-0.5 shadow-md shadow-emerald-700/20 flex items-center justify-center">
               <div className="w-full h-full bg-emerald-950/20 backdrop-blur-xs rounded-[10px] flex items-center justify-center text-white">
                 <Printer className="w-5 h-5 text-emerald-100" />
@@ -144,24 +151,23 @@ export const Navbar: React.FC<NavbarProps> = ({
               <CalendarDays className="w-3.5 h-3.5 text-emerald-600" />
               <span className="hidden sm:inline text-slate-600">Today:</span>
               <span className="font-bold text-emerald-700">
-                {dailySlots.remainingSlots} / 10 slots left
+                {dailySlots.remainingSlots} / {dailySlots.totalAllowed} left
               </span>
             </div>
 
-            {/* Officer Desk toggle mode */}
+            {/* Admin Dashboard Dedicated Button */}
             <button
-              onClick={onToggleOfficerMode}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                isOfficerMode 
-                  ? 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold shadow-xs' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              onClick={onOpenAdmin}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                isAdminView
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-700/25 ring-2 ring-emerald-400'
+                  : 'bg-slate-900 hover:bg-slate-800 text-white border border-slate-700'
               }`}
-              title="Switch to SK Youth Officer Desk to manage print queue & change status"
+              title="Open the complete SK Print Desk Admin Dashboard"
             >
-              <ShieldCheck className={`w-3.5 h-3.5 ${isOfficerMode ? 'text-amber-700' : 'text-slate-500'}`} />
-              <span className="hidden lg:inline">
-                {isOfficerMode ? 'Desk Staff Mode' : 'SK Desk Staff'}
-              </span>
+              <LayoutDashboard className="w-3.5 h-3.5 text-emerald-300" />
+              <span className="hidden sm:inline">Admin Dashboard</span>
+              <span className="sm:hidden">Admin</span>
             </button>
 
             {/* SMS / Email notifications bell */}
@@ -215,7 +221,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-700 hover:to-teal-800 shadow-xs rounded-lg transition-all cursor-pointer flex items-center gap-1"
                 >
                   <UserIcon className="w-3.5 h-3.5" />
-                  <span>Create Account</span>
+                  <span className="hidden sm:inline">Create Account</span>
+                  <span className="sm:hidden">Join</span>
                 </button>
               </div>
             )}

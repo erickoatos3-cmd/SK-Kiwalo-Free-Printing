@@ -155,10 +155,10 @@ export const DailyCapacitySection: React.FC<DailyCapacitySectionProps> = ({
               )}
             </div>
 
-            {/* 10 Visual Slot Badges */}
+            {/* Visual Slot Badges */}
             <div className="md:col-span-8">
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-                {Array.from({ length: DAILY_CAPACITY_LIMIT }).map((_, idx) => {
+                {Array.from({ length: slotInfo.totalAllowed }).map((_, idx) => {
                   const job = jobs[idx];
                   const isTaken = !!job;
 

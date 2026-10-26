@@ -2,5 +2,7 @@
   "name": "SK Kiwalo Free Printing",
   "description": "Free printing initiative for students and youth of Barangay Kiwalo, Daraga, Albay. Upload school modules, track status, and reserve daily printing slots.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
